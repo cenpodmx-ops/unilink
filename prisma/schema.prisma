@@ -1,0 +1,265 @@
+// Micro Business Presence Platform
+// No es CRM, no es sistema administrativo.
+// Es presencia digital interactiva para pequeños negocios e independientes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===================== USUARIOS =====================
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  passwordHash String?
+  image        String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  businesses   Business[]
+}
+
+// ===================== NEGOCIOS =====================
+model Business {
+  id                String             @id @default(cuid())
+  ownerId           String
+  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name              String
+  slug              String             @unique
+  category          String             // belleza, salud, profesional, comida, automotriz, hogar, fitness, fotografia, comercio, otro
+  businessType      String?            // Barbería, Estética, Nails, etc.
+  headline          String?            // "Nails & Beauty"
+  description       String?
+  logoUrl           String?
+  coverUrl          String?
+  phone             String?
+  whatsapp          String?
+  email             String?
+  address           String?
+  mapsUrl           String?
+  googleReviewUrl   String?
+  primaryColor      String             @default("#0F766E")
+  theme             String             @default("minimal") // minimal, profesional, bold, elegante
+  typography        String             @default("moderna") // moderna, elegante, clasica
+  isBookingEnabled  Boolean            @default(false)
+  bookingNote       String?
+  status            String             @default("draft") // draft, pending_payment, active, suspended, deleted
+  primaryButton     String             @default("whatsapp") // whatsapp, call, book, share
+  // Etiquetas (acerca del negocio)
+  tags              String             @default("[]") // JSON array: ["Aceptamos tarjeta","Estacionamiento"]
+  aboutText         String?
+  // Sección de avisos
+  noticeText        String?
+  noticeActive      Boolean            @default(false)
+  // Orden de secciones (JSON array de strings)
+  sectionOrder      String             @default("[\"services\",\"gallery\",\"promotions\",\"about\",\"hours\",\"location\",\"reviews\",\"faq\"]")
+  // Configuración de agenda
+  bookingSlotInterval Int              @default(30) // minutos
+  bookingMinLead      Int              @default(60) // minutos de anticipación mínima
+  bookingMaxDays      Int              @default(30) // días futuros disponibles
+  // Botones rápidos visibles
+  visibleButtons     String             @default("[\"whatsapp\",\"call\",\"location\",\"instagram\",\"share\",\"saveContact\"]")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  settings          BusinessSetting?
+  hours             BusinessHour[]
+  socialLinks       SocialLink[]
+  serviceCategories ServiceCategory[]
+  services          Service[]
+  galleryItems      GalleryItem[]
+  promotions        Promotion[]
+  faqs              Faq[]
+  appointments      Appointment[]
+  appointmentBlocks AppointmentBlock[]
+  analyticsEvents   AnalyticsEvent[]
+  payments          Payment[]
+}
+
+model BusinessSetting {
+  id                String   @id @default(cuid())
+  businessId        String   @unique
+  business          Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  showHeader        Boolean  @default(true)
+  showServices      Boolean  @default(true)
+  showGallery       Boolean  @default(true)
+  showPromotions    Boolean  @default(true)
+  showHours         Boolean  @default(true)
+  showLocation      Boolean  @default(true)
+  showSocial        Boolean  @default(true)
+  showReviews       Boolean  @default(true)
+  showFaq           Boolean  @default(false)
+  showAbout         Boolean  @default(true)
+  showNotice        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model BusinessHour {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int      // 0=Domingo, 1=Lunes, ..., 6=Sábado
+  isOpen      Boolean  @default(true)
+  openTime    String   @default("09:00")
+  closeTime   String   @default("18:00")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([businessId, dayOfWeek])
+}
+
+model SocialLink {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  platform    String   // instagram, facebook, tiktok, youtube, x, linkedin, website
+  url         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([businessId, platform])
+}
+
+// ===================== SERVICIOS =====================
+model ServiceCategory {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
+  sortOrder   Int       @default(0)
+  isVisible   Boolean   @default(true)
+  services    Service[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Service {
+  id               String           @id @default(cuid())
+  businessId       String
+  business         Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  categoryId       String?
+  category         ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  type             String           @default("service") // service, product
+  name             String
+  description      String?
+  imageUrl         String?
+  price            Float?
+  priceType        String           @default("fixed") // fixed, from, quote
+  durationMinutes  Int?
+  isBookable       Boolean          @default(false)
+  isVisible        Boolean          @default(true)
+  sortOrder        Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  appointments     Appointment[]
+  analyticsEvents  AnalyticsEvent[]
+}
+
+// ===================== GALERÍA =====================
+model GalleryItem {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  imageUrl    String
+  caption     String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ===================== PROMOCIONES =====================
+model Promotion {
+  id          String    @id @default(cuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  imageUrl    String?
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ===================== FAQ =====================
+model Faq {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  question    String
+  answer      String
+  sortOrder   Int      @default(0)
+  isVisible   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ===================== AGENDA =====================
+model Appointment {
+  id            String    @id @default(cuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  serviceId     String?
+  service       Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  date          DateTime
+  startTime     String    // "10:00"
+  endTime       String    // "10:45"
+  status        String    @default("pending") // pending, confirmed, completed, cancelled, no_show
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model AppointmentBlock {
+  id          String   @id @default(cuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  date        DateTime
+  startTime   String   // "14:00"
+  endTime     String   // "16:00"
+  allDay      Boolean  @default(false)
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ===================== ANALYTICS =====================
+model AnalyticsEvent {
+  id           String    @id @default(cuid())
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  eventType    String    // page_view, whatsapp_click, call_click, maps_click, instagram_click, service_click, booking_started, booking_completed, share_click, save_contact_click
+  serviceId    String?
+  service      Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  sessionId    String
+  metadata     String?   // JSON string
+  createdAt    DateTime  @default(now())
+
+  @@index([businessId, eventType, createdAt])
+  @@index([sessionId])
+}
+
+// ===================== PAGOS =====================
+model Payment {
+  id            String    @id @default(cuid())
+  businessId    String
+  business      Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  userId        String
+  amount        Float
+  currency      String    @default("MXN")
+  status        String    @default("pending") // pending, completed, failed, refunded
+  provider      String?   // stripe, mercado_pago
+  providerRef   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
