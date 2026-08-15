@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutGrid,
@@ -18,18 +18,44 @@ import {
   CalendarCheck,
   Share2,
   QrCode,
-  Plus,
   Clock,
   TrendingUp,
   Users,
+  ChevronDown,
+  Building2,
+  Check,
+  Pencil,
+  Palette,
 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { format, isToday, isTomorrow, parseISO } from 'date-fns'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+
+import { ServicesManager } from './services-manager'
+import { GalleryManager } from './gallery-manager'
+import { PromotionsManager } from './promotions-manager'
+import { FaqsManager } from './faqs-manager'
+import { HoursManager } from './hours-manager'
+import { SocialLinksManager } from './social-links-manager'
+import { AboutNoticeSection } from './about-notice-section'
+import { AppointmentsManager } from './appointments-manager'
+import { EditBusinessInfoDialog } from './edit-business-info-dialog'
+import { EditBusinessDesignDialog } from './edit-business-design-dialog'
+import { QrDialog } from './qr-dialog'
+import { parseTags, type BusinessT } from './dashboard-helpers'
 
 type Tab = 'inicio' | 'pagina' | 'servicios' | 'agenda' | 'estadisticas' | 'configuracion'
 
@@ -44,12 +70,25 @@ const NAV: { id: Tab; label: string; icon: typeof LayoutGrid }[] = [
 
 export function Dashboard({ slug }: { slug: string }) {
   const [tab, setTab] = useState<Tab>('inicio')
+  const [qrOpen, setQrOpen] = useState(false)
+  const router = useRouter()
+  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', slug],
     queryFn: async () => {
       const res = await fetch(`/api/dashboard/business?slug=${slug}`)
       if (!res.ok) return null
+      return res.json()
+    },
+  })
+
+  // Lista de negocios del usuario para el dropdown "Mis páginas"
+  const { data: businessesData } = useQuery<{ businesses: any[] }>({
+    queryKey: ['businesses'],
+    queryFn: async () => {
+      const res = await fetch('/api/businesses')
+      if (!res.ok) return { businesses: [] }
       return res.json()
     },
   })
@@ -79,9 +118,19 @@ export function Dashboard({ slug }: { slug: string }) {
     )
   }
 
-  const business = data.business
+  const business = data.business as BusinessT
   const metrics = data.metrics
   const primaryColor = business.primaryColor
+
+  const businesses = businessesData?.businesses || []
+  const hasMultipleBusinesses = businesses.length > 1
+
+  const switchBusiness = (newSlug: string) => {
+    if (newSlug === slug) return
+    // Invalidar cache para que se vuelva a cargar el nuevo negocio
+    qc.removeQueries({ queryKey: ['dashboard', slug] })
+    router.push(`/dashboard?slug=${newSlug}`)
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30">
@@ -93,6 +142,49 @@ export function Dashboard({ slug }: { slug: string }) {
             <span className="font-semibold tracking-tight hidden sm:block">Unilink</span>
           </Link>
           <div className="flex items-center gap-2">
+            {/* Mis páginas dropdown - solo si tiene múltiples negocios */}
+            {hasMultipleBusinesses && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5 max-w-[180px]">
+                    <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">{business.name}</span>
+                    <ChevronDown className="h-3.5 w-3.5 flex-shrink-0 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">Mis páginas</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {businesses.map((b) => (
+                    <DropdownMenuItem
+                      key={b.id}
+                      onClick={() => switchBusiness(b.slug)}
+                      className="gap-2 cursor-pointer"
+                    >
+                      <div
+                        className="h-6 w-6 rounded-md flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold"
+                        style={{ backgroundColor: b.primaryColor || primaryColor }}
+                      >
+                        {b.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{b.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">/{b.slug}</div>
+                      </div>
+                      {b.slug === slug && <Check className="h-3.5 w-3.5 flex-shrink-0 opacity-60" />}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/onboarding" className="gap-2">
+                      <span className="flex h-6 w-6 rounded-md items-center justify-center bg-muted text-xs">+</span>
+                      <span className="text-sm">Crear nueva página</span>
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             <Button variant="outline" size="sm" asChild>
               <Link href={`/${business.slug}`} target="_blank">
                 <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
@@ -144,22 +236,22 @@ export function Dashboard({ slug }: { slug: string }) {
         <AnimatePresence mode="wait">
           {tab === 'inicio' && (
             <motion.div key="inicio" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              <InicioView business={business} metrics={metrics} todaysAppointments={data.todaysAppointments} primaryColor={primaryColor} />
+              <InicioView business={business} metrics={metrics} todaysAppointments={data.todaysAppointments} primaryColor={primaryColor} onQrOpen={() => setQrOpen(true)} />
             </motion.div>
           )}
           {tab === 'pagina' && (
             <motion.div key="pagina" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              <PaginaView business={business} primaryColor={primaryColor} />
+              <PaginaView business={business} />
             </motion.div>
           )}
           {tab === 'servicios' && (
             <motion.div key="servicios" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              <ServiciosView business={business} primaryColor={primaryColor} />
+              <ServicesManager business={business} />
             </motion.div>
           )}
           {tab === 'agenda' && (
             <motion.div key="agenda" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              <AgendaView business={business} appointments={data.appointments} todaysAppointments={data.todaysAppointments} primaryColor={primaryColor} />
+              <AppointmentsManager business={business} />
             </motion.div>
           )}
           {tab === 'estadisticas' && (
@@ -169,7 +261,7 @@ export function Dashboard({ slug }: { slug: string }) {
           )}
           {tab === 'configuracion' && (
             <motion.div key="configuracion" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-              <ConfiguracionView business={business} primaryColor={primaryColor} />
+              <ConfiguracionView business={business} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -178,13 +270,21 @@ export function Dashboard({ slug }: { slug: string }) {
       <footer className="mt-auto border-t border-border/60 py-4 px-4 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} Unilink · Tu negocio en un link.
       </footer>
+
+      <QrDialog
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+        url={typeof window !== 'undefined' ? `${window.location.origin}/${business.slug}` : ''}
+        businessName={business.name}
+        primaryColor={primaryColor}
+      />
     </div>
   )
 }
 
 // ===================== VIEWS =====================
 
-function InicioView({ business, metrics, todaysAppointments, primaryColor }: any) {
+function InicioView({ business, metrics, todaysAppointments, primaryColor, onQrOpen }: any) {
   return (
     <div className="space-y-6">
       {/* Quick stats */}
@@ -243,7 +343,7 @@ function InicioView({ business, metrics, todaysAppointments, primaryColor }: any
               <Button variant="outline" className="w-full justify-start">
                 <Share2 className="h-4 w-4 mr-2" /> Compartir
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start" onClick={onQrOpen}>
                 <QrCode className="h-4 w-4 mr-2" /> Descargar QR
               </Button>
             </div>
@@ -264,12 +364,25 @@ function InicioView({ business, metrics, todaysAppointments, primaryColor }: any
   )
 }
 
-function PaginaView({ business, primaryColor }: any) {
-  const tags = (() => { try { return JSON.parse(business.tags || '[]') } catch { return [] } })()
+/**
+ * Vista "Mi página" - compuesta por los managers de cada sección.
+ * Reemplaza el antiguo inline read-only view.
+ */
+function PaginaView({ business }: { business: BusinessT }) {
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [designOpen, setDesignOpen] = useState(false)
+  const tags = parseTags(business.tags)
+
   return (
     <div className="space-y-5">
+      {/* Información del negocio (read-only summary + botón para abrir diálogo de edición) */}
       <Card className="p-5">
-        <h2 className="font-semibold mb-4">Información del negocio</h2>
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <h2 className="font-semibold">Información del negocio</h2>
+          <Button variant="outline" size="sm" onClick={() => setInfoOpen(true)}>
+            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar información
+          </Button>
+        </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <InfoRow label="Nombre" value={business.name} />
           <InfoRow label="Subtítulo" value={business.headline || '—'} />
@@ -296,21 +409,22 @@ function PaginaView({ business, primaryColor }: any) {
             </div>
           </div>
         )}
-        <Button variant="outline" size="sm" className="mt-4">
-          Editar información
-        </Button>
       </Card>
 
+      {/* Diseño (resumen + botón para abrir diálogo de edición) */}
       <Card className="p-5">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <h2 className="font-semibold">Diseño</h2>
+          <Button variant="outline" size="sm" onClick={() => setDesignOpen(true)}>
+            <Palette className="h-3.5 w-3.5 mr-1.5" /> Editar diseño
+          </Button>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <div className="text-xs text-muted-foreground mb-2">Color principal</div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg border border-border" style={{ backgroundColor: primaryColor }} />
-              <code className="text-sm">{primaryColor}</code>
+              <div className="w-8 h-8 rounded-lg border border-border" style={{ backgroundColor: business.primaryColor }} />
+              <code className="text-sm">{business.primaryColor}</code>
             </div>
           </div>
           <div>
@@ -320,6 +434,25 @@ function PaginaView({ business, primaryColor }: any) {
         </div>
       </Card>
 
+      {/* Acerca de + Aviso destacado (editable inline) */}
+      <AboutNoticeSection business={business} />
+
+      {/* Horarios (editable inline) */}
+      <HoursManager business={business} />
+
+      {/* Redes sociales (CRUD inline) */}
+      <SocialLinksManager business={business} />
+
+      {/* Galería (CRUD inline) */}
+      <GalleryManager business={business} />
+
+      {/* Promociones (CRUD inline) */}
+      <PromotionsManager business={business} />
+
+      {/* FAQs (CRUD inline) */}
+      <FaqsManager business={business} />
+
+      {/* Vista previa */}
       <Card className="p-5">
         <h2 className="font-semibold mb-3">Vista previa</h2>
         <div className="aspect-[9/16] sm:aspect-[9/12] max-h-[500px] rounded-xl overflow-hidden border border-border bg-muted/30 relative">
@@ -333,157 +466,10 @@ function PaginaView({ business, primaryColor }: any) {
           Así se ve tu página en tiempo real
         </p>
       </Card>
-    </div>
-  )
-}
 
-function ServiciosView({ business, primaryColor }: any) {
-  const categories = business.serviceCategories || []
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Servicios y productos</h2>
-        <Button size="sm" className="bg-brand text-brand-foreground hover:bg-brand-600">
-          <Plus className="h-4 w-4 mr-1" /> Nuevo
-        </Button>
-      </div>
-      {categories.length === 0 ? (
-        <Card className="p-8 text-center text-sm text-muted-foreground">
-          No hay servicios todavía.
-        </Card>
-      ) : (
-        categories.map((cat: any) => (
-          <Card key={cat.id} className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm">{cat.name}</h3>
-              <Badge variant="secondary" className="text-xs">{cat.services.length}</Badge>
-            </div>
-            <div className="space-y-2">
-              {cat.services.map((s: any) => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-card">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {s.imageUrl ? (
-                      
-                      <img src={s.imageUrl} alt={s.name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                        <Tag className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{s.name}</div>
-                      {s.description && <div className="text-xs text-muted-foreground truncate">{s.description}</div>}
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-sm font-bold" style={{ color: primaryColor }}>
-                      {s.priceType === 'quote' ? 'Cotización' : s.priceType === 'from' ? `Desde $${s.price}` : `$${s.price}`}
-                    </div>
-                    {s.durationMinutes && (
-                      <div className="text-xs text-muted-foreground flex items-center gap-0.5 justify-end">
-                        <Clock className="h-3 w-3" />{s.durationMinutes}min
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))
-      )}
-    </div>
-  )
-}
-
-function AgendaView({ business, appointments, todaysAppointments, primaryColor }: any) {
-  if (!business.isBookingEnabled) {
-    return (
-      <Card className="p-8 text-center">
-        <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-        <h2 className="font-semibold mb-1">Agenda desactivada</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Activa la agenda para recibir reservas online de tus clientes.
-        </p>
-        <Button className="bg-brand text-brand-foreground hover:bg-brand-600">
-          Activar agenda
-        </Button>
-      </Card>
-    )
-  }
-
-  const upcoming = appointments.filter((a: any) => a.date >= new Date())
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Próximas citas</h2>
-        <Button size="sm" className="bg-brand text-brand-foreground hover:bg-brand-600">
-          <Plus className="h-4 w-4 mr-1" /> Nueva cita
-        </Button>
-      </div>
-
-      {todaysAppointments.length > 0 && (
-        <Card className="p-4">
-          <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            Hoy
-          </h3>
-          <div className="space-y-2">
-            {todaysAppointments.map((a: any) => (
-              <AppointmentRow key={a.id} a={a} primaryColor={primaryColor} />
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <Card className="p-4">
-        <h3 className="font-semibold text-sm mb-3">Próximas</h3>
-        {upcoming.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-6">No hay citas programadas</p>
-        ) : (
-          <div className="space-y-2">
-            {upcoming.slice(0, 20).map((a: any) => (
-              <AppointmentRow key={a.id} a={a} primaryColor={primaryColor} />
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
-  )
-}
-
-function AppointmentRow({ a, primaryColor }: any) {
-  const statusLabels: Record<string, string> = {
-    pending: 'Pendiente',
-    confirmed: 'Confirmada',
-    completed: 'Completada',
-    cancelled: 'Cancelada',
-    no_show: 'No asistió',
-  }
-  const statusColors: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-700',
-    confirmed: 'bg-green-100 text-green-700',
-    completed: 'bg-blue-100 text-blue-700',
-    cancelled: 'bg-red-100 text-red-700',
-    no_show: 'bg-gray-100 text-gray-700',
-  }
-  return (
-    <div className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-card">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="text-center flex-shrink-0">
-          <div className="text-xs text-muted-foreground">{format(new Date(a.date), 'EEE d MMM', { locale: es })}</div>
-          <div className="text-sm font-bold" style={{ color: primaryColor }}>{a.startTime}</div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{a.customerName}</div>
-          <div className="text-xs text-muted-foreground truncate">
-            {a.service?.name || 'Servicio'} · {a.customerPhone}
-          </div>
-        </div>
-      </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${statusColors[a.status] || ''}`}>
-        {statusLabels[a.status] || a.status}
-      </span>
+      {/* Diálogos de edición */}
+      <EditBusinessInfoDialog business={business} open={infoOpen} onOpenChange={setInfoOpen} />
+      <EditBusinessDesignDialog business={business} open={designOpen} onOpenChange={setDesignOpen} />
     </div>
   )
 }
@@ -552,11 +538,28 @@ function EstadisticasView({ metrics, primaryColor }: any) {
   )
 }
 
-function ConfiguracionView({ business, primaryColor }: any) {
+/**
+ * Vista de Configuración - mantiene la sección existente (cuenta, agenda, zona de peligro)
+ * pero ahora incluye botones para abrir los diálogos de edición de info y diseño.
+ */
+function ConfiguracionView({ business }: { business: BusinessT }) {
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [designOpen, setDesignOpen] = useState(false)
+
   return (
     <div className="space-y-5">
       <Card className="p-5">
-        <h2 className="font-semibold mb-4">Cuenta</h2>
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <h2 className="font-semibold">Cuenta</h2>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setInfoOpen(true)}>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Editar información
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDesignOpen(true)}>
+              <Palette className="h-3.5 w-3.5 mr-1.5" /> Editar diseño
+            </Button>
+          </div>
+        </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <InfoRow label="Plan" value="Página Digital · $399" />
           <InfoRow label="Estado" value={business.status} />
@@ -576,6 +579,9 @@ function ConfiguracionView({ business, primaryColor }: any) {
             </>
           )}
         </div>
+        <p className="text-xs text-muted-foreground mt-3">
+          Para gestionar citas, bloqueos y configuración avanzada, usa la pestaña <strong>Agenda</strong>.
+        </p>
       </Card>
 
       <Card className="p-5 border-red-200">
@@ -587,6 +593,10 @@ function ConfiguracionView({ business, primaryColor }: any) {
           Suspender página
         </Button>
       </Card>
+
+      {/* Diálogos de edición (compartidos con la vista "Mi página") */}
+      <EditBusinessInfoDialog business={business} open={infoOpen} onOpenChange={setInfoOpen} />
+      <EditBusinessDesignDialog business={business} open={designOpen} onOpenChange={setDesignOpen} />
     </div>
   )
 }

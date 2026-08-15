@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 import { promises as fs } from 'fs'
 import path from 'path'
 
@@ -33,11 +34,12 @@ async function main() {
   await prisma.user.deleteMany()
 
   // === Crear usuario dueño ===
+  const passwordHash = await bcrypt.hash('demo1234', 10)
   const owner = await prisma.user.create({
     data: {
       email: 'fernanda@studiofernanda.mx',
       name: 'Fernanda López',
-      passwordHash: 'demo_hash',
+      passwordHash,
     },
   })
 

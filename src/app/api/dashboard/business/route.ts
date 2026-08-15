@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/dashboard/business?slug=studio-fernanda
  * Devuelve los datos del negocio para el dashboard (incluye citas y métricas).
+ * Verifica ownership.
  */
 export async function GET(req: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const slug = searchParams.get('slug')
 
@@ -16,8 +23,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'slug requerido' }, { status: 400 })
     }
 
-    const business = await db.business.findUnique({
-      where: { slug },
+    const business = await db.business.findFirst({
+      where: { slug, ownerId: user.id },
       include: {
         settings: true,
         hours: { orderBy: { dayOfWeek: 'asc' } },

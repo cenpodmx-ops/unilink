@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { getCurrentUser } from '@/lib/auth/get-current-user'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,17 +66,17 @@ export async function POST(req: NextRequest) {
     }
     const data = parsed.data
 
-    let owner = await db.user.findFirst({
-      where: { email: 'demo@unilink.mx' },
+    // Requiere usuario autenticado
+    const currentUser = await getCurrentUser()
+    if (!currentUser) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    }
+
+    const owner = await db.user.findUnique({
+      where: { id: currentUser.id },
     })
     if (!owner) {
-      owner = await db.user.create({
-        data: {
-          email: 'demo@unilink.mx',
-          name: 'Usuario Demo',
-          passwordHash: 'demo',
-        },
-      })
+      return NextResponse.json({ error: 'user not found' }, { status: 404 })
     }
 
     const slug = await uniqueSlug(slugify(data.name))

@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from 'next-themes'
 import { useState } from 'react'
+import { SessionWrapper } from '@/components/auth/session-wrapper'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -20,7 +21,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <SessionWrapper>
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      </SessionWrapper>
     </ThemeProvider>
   )
 }
