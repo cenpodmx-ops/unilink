@@ -58,3 +58,4 @@ server.log
 
 # Worklog (internal agent tracking)
 worklog.md
+tool-results/
