@@ -57,6 +57,15 @@ export async function GET(req: NextRequest) {
           where: { date: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
           orderBy: { date: 'asc' },
         },
+        // Citas futuras activas (para no mostrar slots ya reservados)
+        appointments: {
+          where: {
+            status: { in: ['pending', 'confirmed'] },
+            date: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+          },
+          select: { id: true, date: true, startTime: true, endTime: true, status: true },
+          orderBy: { date: 'asc' },
+        },
       },
     })
 

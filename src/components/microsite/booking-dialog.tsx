@@ -19,6 +19,15 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { buildWhatsAppUrl } from '@/lib/business/helpers'
 
+// Tipo mínimo para citas existentes (no usamos el Appointment completo)
+interface ExistingAppointment {
+  id: string
+  date: Date
+  startTime: string
+  endTime: string
+  status: string
+}
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -27,6 +36,7 @@ interface Props {
   businessName: string
   hours: BusinessHour[]
   blocks: AppointmentBlock[]
+  appointments: ExistingAppointment[]
   maxDays: number
   slotInterval: number
   sessionId: string
@@ -45,6 +55,7 @@ export function BookingDialog({
   businessName,
   hours,
   blocks,
+  appointments,
   maxDays,
   slotInterval,
   sessionId,
@@ -109,6 +120,7 @@ export function BookingDialog({
         selectedDate,
         hours,
         blocks,
+        appointments,
         slotInterval,
         service?.durationMinutes ?? 30,
       )
@@ -474,6 +486,7 @@ function generateTimeSlots(
   date: Date,
   hours: BusinessHour[],
   blocks: AppointmentBlock[],
+  appointments: ExistingAppointment[],
   interval: number,
   duration: number,
 ): string[] {
@@ -494,10 +507,10 @@ function generateTimeSlots(
 
   while (currentMin + duration <= closeMin) {
     if (currentMin >= minFromNow) {
-      // Verificar que no choque con un bloque de ese día específico
       const slotEnd = currentMin + duration
-      const blocked = blocks.some((b) => {
-        // Solo considerar bloques de este día específico
+
+      // Verificar que no choque con un bloque de ese día específico
+      const blockedByBlock = blocks.some((b) => {
         if (!isSameDay(new Date(b.date), date)) return false
         if (b.allDay) return true
         const [bs, be] = [b.startTime, b.endTime].map((t) => {
@@ -506,11 +519,29 @@ function generateTimeSlots(
         })
         return currentMin < be && slotEnd > bs
       })
-      if (!blocked) {
-        const h = Math.floor(currentMin / 60)
-        const m = currentMin % 60
-        slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
+      if (blockedByBlock) {
+        currentMin += interval
+        continue
       }
+
+      // Verificar que no choque con una cita existente de ese día
+      const blockedByAppointment = appointments.some((a) => {
+        if (!isSameDay(new Date(a.date), date)) return false
+        if (a.status !== 'pending' && a.status !== 'confirmed') return false
+        const [as_, ae] = [a.startTime, a.endTime].map((t) => {
+          const [h, m] = t.split(':').map(Number)
+          return h * 60 + m
+        })
+        return currentMin < ae && slotEnd > as_
+      })
+      if (blockedByAppointment) {
+        currentMin += interval
+        continue
+      }
+
+      const h = Math.floor(currentMin / 60)
+      const m = currentMin % 60
+      slots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
     }
     currentMin += interval
   }
