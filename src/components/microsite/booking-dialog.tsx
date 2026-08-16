@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Calendar, Clock, Check, ChevronLeft, Loader2, PartyPopper } from 'lucide-react'
+import { Calendar, Clock, Check, ChevronLeft, Loader2, PartyPopper, MessageCircle } from 'lucide-react'
 import { addDays, format, isBefore, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Service, BusinessHour, AppointmentBlock, Appointment } from '@prisma/client'
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { buildWhatsAppUrl } from '@/lib/business/helpers'
 
 interface Props {
   open: boolean
@@ -31,6 +32,7 @@ interface Props {
   sessionId: string
   primaryColor: string
   bookingNote?: string | null
+  whatsapp?: string | null
 }
 
 type Step = 'date' | 'time' | 'info' | 'confirm' | 'done'
@@ -48,6 +50,7 @@ export function BookingDialog({
   sessionId,
   primaryColor,
   bookingNote,
+  whatsapp,
 }: Props) {
   const [step, setStep] = useState<Step>('date')
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -395,9 +398,27 @@ export function BookingDialog({
                     <span className="font-medium">{selectedTime}</span>
                   </div>
                 </div>
+
+                {/* Botón de WhatsApp con info de la cita */}
+                {whatsapp && service && selectedDate && selectedTime && (() => {
+                  const fechaStr = format(selectedDate, "EEEE d 'de' MMMM", { locale: es })
+                  const msg = `Hola, acabo de agendar una cita en ${businessName}.\n\n*Detalles:*\n• Servicio: ${service.name}\n• Fecha: ${fechaStr}\n• Hora: ${selectedTime}\n\n¿Me podrían confirmar? Gracias.`
+                  const url = buildWhatsAppUrl(whatsapp, msg)
+                  return url ? (
+                    <Button
+                      onClick={() => url && window.open(url, '_blank', 'noopener,noreferrer')}
+                      className="w-full mt-3 h-11"
+                      style={{ backgroundColor: '#22c55e', color: '#fff' }}
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Confirmar por WhatsApp
+                    </Button>
+                  ) : null
+                })()}
+
                 <Button
                   onClick={() => handleClose(false)}
-                  className="w-full mt-4 h-11"
+                  className="w-full mt-2 h-11"
                   variant="outline"
                 >
                   Cerrar

@@ -11,6 +11,7 @@ import {
   Contact as ContactIcon,
   Star,
   ChevronUp,
+  Calendar,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -286,23 +287,36 @@ export function Microsite({ slug }: Props) {
           )}
         </div>
 
-        {/* Primary CTA */}
+        {/* Primary CTA - Reservar + WhatsApp cuando hay agenda activa */}
         <div className="mt-4 flex gap-2">
-          {business.primaryButton === 'book' && business.isBookingEnabled ? (
-            <Button
-              className="flex-1 h-11"
-              style={{ backgroundColor: primaryColor, color: '#fff' }}
-              onClick={() => {
-                const firstBookableService = business.serviceCategories
-                  ?.flatMap((c: { services: Service[] }) => c.services)
-                  .find((s: Service) => s.isBookable)
-                if (firstBookableService) {
-                  handleBook(firstBookableService)
-                }
-              }}
-            >
-              Reservar cita
-            </Button>
+          {business.isBookingEnabled ? (
+            <>
+              <Button
+                className="flex-1 h-11"
+                style={{ backgroundColor: primaryColor, color: '#fff' }}
+                onClick={() => {
+                  const firstBookableService = business.serviceCategories
+                    ?.flatMap((c: { services: Service[] }) => c.services)
+                    .find((s: Service) => s.isBookable)
+                  if (firstBookableService) {
+                    handleBook(firstBookableService)
+                  }
+                }}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Reservar cita
+              </Button>
+              {whatsappUrl && (
+                <Button
+                  className="flex-1 h-11"
+                  style={{ backgroundColor: '#22c55e', color: '#fff' }}
+                  onClick={handleWhatsApp}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  WhatsApp
+                </Button>
+              )}
+            </>
           ) : business.primaryButton === 'call' && business.phone ? (
             <Button
               className="flex-1 h-11"
@@ -439,6 +453,7 @@ export function Microsite({ slug }: Props) {
         sessionId={sessionId || 'unknown'}
         primaryColor={primaryColor}
         bookingNote={business.bookingNote}
+        whatsapp={business.whatsapp}
       />
 
       {/* Scroll to top */}

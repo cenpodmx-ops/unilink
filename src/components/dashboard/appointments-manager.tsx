@@ -44,9 +44,11 @@ import {
   Settings,
   Trash2,
   Clock,
+  MessageCircle,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { buildWhatsAppUrl } from '@/lib/business/helpers'
 import {
   useDashboardMutation,
   useUpdateBusiness,
@@ -317,8 +319,52 @@ function AppointmentRow({ appointment, business }: { appointment: AppointmentT; 
           >
             <UserX className="h-3 w-3 mr-1" /> No asistió
           </Button>
+          {/* Botón WhatsApp al cliente con info de la cita */}
+          {business.whatsapp && (() => {
+            const fechaStr = format(new Date(appointment.date), "EEEE d 'de' MMMM", { locale: es })
+            const servicio = appointment.service?.name || 'Servicio'
+            const msg = `Hola ${appointment.customerName}, te confirmo tu cita en ${business.name}.\n\n*Detalles:*\n• Servicio: ${servicio}\n• Fecha: ${fechaStr}\n• Hora: ${appointment.startTime}\n\n¿Nos vemos ahí?`
+            const url = buildWhatsAppUrl(business.whatsapp, msg)
+            return url ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs text-green-700 hover:bg-green-50 border-green-200"
+                onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+              >
+                <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
+              </Button>
+            ) : null
+          })()}
         </div>
       )}
+
+      {/* Para citas completadas/canceladas/no_show, también permitir WhatsApp */}
+      {(appointment.status === 'completed' || appointment.status === 'cancelled' || appointment.status === 'no_show') &&
+        business.whatsapp && (() => {
+          const fechaStr = format(new Date(appointment.date), "EEEE d 'de' MMMM", { locale: es })
+          const servicio = appointment.service?.name || 'Servicio'
+          const statusTxt = appointment.status === 'completed'
+            ? 'Gracias por tu visita'
+            : appointment.status === 'cancelled'
+              ? 'Lamentamos que se canceló tu cita'
+              : 'Vimos que no pudiste asistir a tu cita'
+          const msg = `Hola ${appointment.customerName}, ${statusTxt}.\n\n*Cita:*\n• Servicio: ${servicio}\n• Fecha: ${fechaStr}\n• Hora: ${appointment.startTime}\n\n¿Te gustaría reagendar?`
+          const url = buildWhatsAppUrl(business.whatsapp, msg)
+          return url ? (
+            <div className="flex gap-1 flex-wrap mt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs text-green-700 hover:bg-green-50 border-green-200"
+                onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+              >
+                <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
+              </Button>
+            </div>
+          ) : null
+        })()
+      }
     </div>
   )
 }
