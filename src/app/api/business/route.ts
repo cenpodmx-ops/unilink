@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { isPromotionActive, safeParseArray } from '@/lib/business/helpers'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth/auth-options'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,6 +10,7 @@ export const dynamic = 'force-dynamic'
  * GET /api/business?slug=studio-fernanda
  * Devuelve todos los datos públicos de un negocio por slug.
  * También dispara el evento page_view si ?track=1
+ * Si el negocio está en draft, solo el dueño puede verlo.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -52,8 +55,16 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    if (!business || business.status !== 'active') {
+    if (!business || business.status === 'deleted') {
       return NextResponse.json({ error: 'Negocio no encontrado' }, { status: 404 })
+    }
+
+    // Si el negocio está en draft o suspended, solo el dueño puede verlo
+    if (business.status !== 'active') {
+      const session = await getServerSession(authOptions)
+      if (!session?.user?.id || session.user.id !== business.ownerId) {
+        return NextResponse.json({ error: 'Negocio no encontrado' }, { status: 404 })
+      }
     }
 
     // Filtrar promociones activas por fecha
@@ -62,8 +73,8 @@ export async function GET(req: NextRequest) {
       isPromotionActive(p, now),
     )
 
-    // Tracking de page_view
-    if (track && sessionId) {
+    // Tracking de page_view (solo para negocios activos, no en preview)
+    if (track && sessionId && business.status === 'active') {
       try {
         await db.analyticsEvent.create({
           data: {

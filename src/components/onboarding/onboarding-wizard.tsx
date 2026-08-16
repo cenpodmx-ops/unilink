@@ -105,7 +105,7 @@ export function OnboardingWizard() {
     onSuccess: (data) => {
       toast.success('¡Tu página está lista!')
       setStep(7)
-      setTimeout(() => router.push(`/${data.slug}`), 1500)
+      setTimeout(() => router.push(`/dashboard?slug=${data.slug}`), 1500)
     },
     onError: (err: Error) => {
       toast.error(err.message)
