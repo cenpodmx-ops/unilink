@@ -7,14 +7,20 @@ export const dynamic = 'force-dynamic'
 
 const CreateSchema = z.object({
   businessId: z.string(),
-  date: z.coerce.date(),
+  // Acepta 'YYYY-MM-DD' y lo guarda como medianoche LOCAL (no UTC)
+  // para evitar el bug de "bloquea un día antes" en zonas horarias negativas
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
   allDay: z.boolean().optional(),
   reason: z.string().max(200).nullish(),
 })
 
-const DeleteSchema = z.object({ id: z.string() })
+// Convierte 'YYYY-MM-DD' a Date a medianoche local (no UTC)
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d, 0, 0, 0, 0)
+}
 
 async function ensureOwned(businessId: string, userId: string) {
   const business = await db.business.findFirst({
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest) {
     const block = await db.appointmentBlock.create({
       data: {
         businessId: data.businessId,
-        date: data.date,
+        date: parseLocalDate(data.date),
         startTime: data.startTime,
         endTime: data.endTime,
         allDay: data.allDay ?? false,
@@ -112,8 +118,8 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * DELETE /api/appointment-blocks
- * Elimina un bloqueo por id.
+ * DELETE /api/appointment-blocks?id=xxx
+ * Elimina un bloqueo por id (pasado como query param para compatibilidad).
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -122,15 +128,33 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
-    const body = await req.json()
-    const parsed = DeleteSchema.safeParse(body)
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'invalid payload', details: parsed.error.flatten() },
-        { status: 400 },
-      )
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) {
+      // Fallback: intentar leer del body (para compatibilidad)
+      let bodyId: string | null = null
+      try {
+        const body = await req.json()
+        bodyId = body?.id || null
+      } catch {
+        // body vacío, ignorar
+      }
+      if (!bodyId) {
+        return NextResponse.json({ error: 'id requerido (query param o body)' }, { status: 400 })
+      }
+      const existing = await db.appointmentBlock.findUnique({
+        where: { id: bodyId },
+        select: { id: true, businessId: true },
+      })
+      if (!existing) {
+        return NextResponse.json({ error: 'not found' }, { status: 404 })
+      }
+      if (!(await ensureOwned(existing.businessId, user.id))) {
+        return NextResponse.json({ error: 'not found' }, { status: 404 })
+      }
+      await db.appointmentBlock.delete({ where: { id: bodyId } })
+      return NextResponse.json({ ok: true })
     }
-    const { id } = parsed.data
 
     const existing = await db.appointmentBlock.findUnique({
       where: { id },

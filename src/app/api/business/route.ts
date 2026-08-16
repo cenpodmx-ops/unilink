@@ -52,6 +52,11 @@ export async function GET(req: NextRequest) {
           where: { isVisible: true },
           orderBy: { sortOrder: 'asc' },
         },
+        // Bloques de agenda futuros (para que el booking dialog los respete)
+        appointmentBlocks: {
+          where: { date: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+          orderBy: { date: 'asc' },
+        },
       },
     })
 

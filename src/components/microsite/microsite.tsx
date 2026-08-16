@@ -447,7 +447,7 @@ export function Microsite({ slug }: Props) {
         businessId={business.id}
         businessName={business.name}
         hours={business.hours || []}
-        blocks={[]}
+        blocks={business.appointmentBlocks || []}
         maxDays={business.bookingMaxDays || 30}
         slotInterval={business.bookingSlotInterval || 30}
         sessionId={sessionId || 'unknown'}

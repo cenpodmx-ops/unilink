@@ -53,8 +53,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'service not bookable' }, { status: 400 })
     }
 
-    // Construir fecha y hora
-    const date = new Date(`${data.date}T00:00:00`)
+    // Construir fecha y hora (medianoche LOCAL para evitar bug de zona horaria)
+    const [yr, mo, dy] = data.date.split('-').map(Number)
+    const date = new Date(yr, mo - 1, dy, 0, 0, 0, 0)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 

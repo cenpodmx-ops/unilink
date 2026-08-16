@@ -434,6 +434,14 @@ export function BookingDialog({
 
 // ===================== Helpers de slots =====================
 
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
 function generateAvailableDays(
   hours: BusinessHour[],
   blocks: AppointmentBlock[],
@@ -446,6 +454,9 @@ function generateAvailableDays(
     const dayOfWeek = day.getDay()
     const dayHours = hours.find((h) => h.dayOfWeek === dayOfWeek)
     if (!dayHours?.isOpen) continue
+    // Si el día completo está bloqueado, no mostrarlo
+    const dayBlocked = blocks.some((b) => b.allDay && isSameDay(new Date(b.date), day))
+    if (dayBlocked) continue
     // Si es hoy, verificar que todavía haya horario disponible
     if (i === 0) {
       const now = new Date()
@@ -483,9 +494,11 @@ function generateTimeSlots(
 
   while (currentMin + duration <= closeMin) {
     if (currentMin >= minFromNow) {
-      // Verificar que no choque con un bloque
+      // Verificar que no choque con un bloque de ese día específico
       const slotEnd = currentMin + duration
       const blocked = blocks.some((b) => {
+        // Solo considerar bloques de este día específico
+        if (!isSameDay(new Date(b.date), date)) return false
         if (b.allDay) return true
         const [bs, be] = [b.startTime, b.endTime].map((t) => {
           const [h, m] = t.split(':').map(Number)
